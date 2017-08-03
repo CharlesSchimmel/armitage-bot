@@ -79,9 +79,11 @@ def get_card_details(card_id):
 			print("{}: {}".format(p,req.json()[p]))
 
 def sieve_cards_from_comment(comment):
-    return re.findall(r"""\?([A-z]+\s*[A-z]\w+\s*)*\?""",comment)
+    # return re.findall(r"""\?([A-z']+\s*[A-z]\w+\s*)*\?""",comment)
+    return re.findall(r"""\?([A-z'! \"]+)*\?""",comment)
 
-comment = "just talking about ?roland? and maybe ?shriveling?"
+comment = "what about cards with spaces like ?\"i've got a plan\"?"
+print(sieve_cards_from_comment(comment))
 for fuzzy_name in sieve_cards_from_comment(comment):
 	card_name = fuzzy_match_card(build_arkham_dict(),fuzzy_name)
 	for cid in get_ids_by_name(card_name):
