@@ -80,25 +80,26 @@ def get_ids_by_name(card_name):
 
 def get_arkham_card_details(card_id):
 	arkhamdb_api = "http://arkhamdb.com/api/public/card/{}"
-	possible_properties = ["name","type_name","cost","xp","faction_name","slot","traits","text","url"]
+	possible_properties = ["type_name","cost","xp","faction_name","slot","traits","text"]
 	padded_id = "0"+str(card_id)
 	req = requests.get(arkhamdb_api.format(padded_id))
-	reply = ""
+	reply = "**[{}]({})**".format(req.json()['name'],req.json()['url'])
+	reply += "    \n"
 	for p in possible_properties:
 		if p in req.json().keys():
-			reply += "{}: {}".format(p,replace_html(req.json()[p]))
-			reply += "\n"
+			reply += "{}".format(replace_html(req.json()[p]))
+			reply += "    \n"
 	return reply
 
 def replace_html(text):
 	text = str(text)
-	return re.sub(r"""(<\/*b>)""","*",text)
+	return re.sub(r"""(<\/*b>)""","**",text)
 
 def sieve_cards_from_comment(comment_body):
 	return re.findall(r"""\?([A-z0-9'.! \"]+)*\?""",comment_body)
 
 def watch_comments():
-	sub = "bottest"
+	sub = "sandboxtest"
 	for comment in r.subreddit(sub).stream.comments():
 		reply = ""
 		if comment.created_utc > (time.time() - 120) and not already_replied(comment):
@@ -119,7 +120,7 @@ def reply_to_comment(comment,reply):
 		print("reply error:")
 		print(e)
 
-r = praw.Reddit(site_name="armitage",)
+r = praw.Reddit(site_name="armitage")
 arkham_dict = build_arkham_dict()
 
 if __name__ == "__main__":
