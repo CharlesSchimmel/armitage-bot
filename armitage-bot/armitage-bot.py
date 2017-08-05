@@ -9,6 +9,7 @@ import sqlite3
 import json
 import time
 import re
+import datetime
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 
@@ -80,26 +81,128 @@ def get_ids_by_name(card_name):
 
 def get_arkham_card_details(card_id):
 	arkhamdb_api = "http://arkhamdb.com/api/public/card/{}"
-	possible_properties = ["type_name","cost","xp","faction_name","slot","traits","text"]
 	padded_id = "0"+str(card_id)
 	req = requests.get(arkhamdb_api.format(padded_id))
-	reply = "**[{}]({})**".format(req.json()['name'],req.json()['url'])
-	reply += "    \n"
-	for p in possible_properties:
-		if p in req.json().keys():
-			reply += "{}".format(replace_html(req.json()[p]))
-			reply += "    \n"
+	return req.json()
+
+
+def build_reply(rjson):
+	reply = "**[{}]({})**".format(rjson['name'],rjson['url'])
+	if rjson['type_code'] == 'investigator':
+		reply += build_investigator(rjson)
+	elif rjson['type_code'] == 'asset':
+		reply += build_asset_event(rjson)
+	elif rjson['type_code'] == 'event':
+		reply += build_asset_event(rjson)
+	elif rjson['type_code'] == 'skill':
+		reply += build_skill(rjson)
+	elif rjson['type_code'] == 'enemy':
+		reply += build_enemy(rjson)
+	elif rjson['type_code'] == 'treachery':
+		reply += build_treachery(rjson)
+	else:
+		pass
+		# reply += "    \n"
+		# possible_properties = ["faction_name","text"]
+		# for p in possible_properties:
+		# 	if p in rjson.keys():
+		# 		reply += "{}".format(replace_html(rjson[p]))
+		# 		reply += "    \n"
+	reply = replace_html(reply)
+	reply += "\n\n"
+	# reply += "    \n"
 	return reply
 
+
+def build_investigator(rjson):
+	reply = []
+	reply.append(": {}".format(rjson['subname']))
+	reply.append("**{}**".format(rjson['faction_name']))
+	reply.append("*{}*".format(rjson['traits']))
+	reply.append("{}[willpower] {}[intellect] {}[combat] {}[agility]".format(rjson['skill_willpower'],rjson['skill_intellect'],rjson['skill_combat'],rjson['skill_agility']))
+	reply.append("Health: {} Sanity: {}".format(rjson['health'],rjson['sanity']))
+	reply.append(rjson['text'])
+	reply.append("*{}*".format(rjson['flavor']))
+	return "    \n".join(r for r in reply)
+
+def build_asset_event(rjson):
+	# reply = ["    \n"]
+	if 'subname' in rjson.keys():
+		reply = [": {}".format(rjson['subname'])]  
+	else: 
+		reply = ["    "]
+	if 'slot' in rjson.keys():
+		reply.append("**{}** - {}".format(rjson['type_name'],rjson['slot']))
+	else:
+		reply.append("**{}**".format(rjson['type_name']))
+	reply.append("{}".format(rjson['faction_name']))
+	reply.append("*{}*".format(rjson['traits']))
+	cost_xp=""
+	if 'cost' in rjson.keys():
+		cost_xp += "Cost: {} ".format(rjson['cost'])
+	if 'xp' in rjson.keys():
+		cost_xp += "Level: {} ".format(rjson['xp'])
+	if len(cost_xp) != 0:
+		reply.append(cost_xp)
+	reply.append(rjson['text'])
+	if 'flavor' in rjson.keys():
+		reply.append("*{}*".format(rjson['flavor']))
+	return "    \n".join(r for r in reply)
+
+def build_skill(rjson):
+	# reply = ["    \n"]
+	reply = ["    "]
+	skills = ["skill_willpower","skill_intellect","skill_combat","skill_agility","skill_wild"]
+	reply.append("{}".format(rjson['faction_name']))
+	reply.append("*{}*".format(rjson['traits']))
+	skill_icons=""
+	for skill in skills:
+		if skill in rjson.keys():
+			for sk in range(0,int(rjson[skill])):
+				skill_icons += "[{}]".format(skill[6:])
+	reply.append(skill_icons)
+	reply.append("Level: {}".format(rjson['xp']))
+	reply.append(rjson['text'])
+	if 'flavor' in rjson.keys():
+		reply.append("*{}*".format(rjson['flavor']))
+	return "    \n".join(r for r in reply)
+
+def build_enemy(rjson):
+	pass
+
+def build_treachery(rjson):
+	pass
+
+
+def replace_arkham_emotes(text):
+	emotes = {"willpower":"willpower",
+			"intellect":"intellect",
+			"combat":"combat",
+			"agility":"agility",
+			"skull":"skull",
+			"cultist":"cultist",
+			"brokentablet":"tablet",
+			"elderthing":"elder_thing",
+			"eldersign":"elder_sign",
+			"autofail":"auto_fail",
+			"wild":"wild",
+			"perinvestigator":"per_investigator"}
+	for e in emotes.keys():
+			re_str = r"""\[{}\]""".format(emotes[e])
+			emote_str = "[](/{})".format(e)
+			text = re.sub(re_str,emote_str,text)
+	return text
+
 def replace_html(text):
-	text = str(text)
-	return re.sub(r"""(<\/*b>)""","**",text)
+	text = re.sub(r"""(<\/*b>)""","**",str(text))
+	text = re.sub(r"""(<\/*i>)""","*",str(text))
+	return text
 
 def sieve_cards_from_comment(comment_body):
-	return re.findall(r"""\?([A-z0-9'.! \"]+)*\?""",comment_body)
+	return re.findall(r"""\?([A-z.\"][A-z0-9'.:! \"]+)*\?""",comment_body)
 
 def watch_comments():
-	sub = "sandboxtest"
+	sub = "arkhamhorrorlcg+sandboxtest"
 	for comment in r.subreddit(sub).stream.comments():
 		reply = ""
 		if comment.created_utc > (time.time() - 120) and not already_replied(comment):
@@ -108,16 +211,21 @@ def watch_comments():
 				for fuzzy_name in possible_cards:
 					card_name = fuzzy_match_card(arkham_dict,fuzzy_name)
 					for cid in get_ids_by_name(card_name):
-						reply += get_arkham_card_details(cid)
+						rjson = get_arkham_card_details(cid)
+						reply += build_reply(rjson)
+						reply = replace_arkham_emotes(reply)
 				reply_to_comment(comment,reply)
 
 def reply_to_comment(comment,reply):
-	log_comment(comment)
+	print("trying to reply...")
 	try:
 		comment.reply(reply)
+		log_comment(comment)
 		print(reply)
 	except Exception as e:
 		print("reply error:")
+		with open('armitage.log','a') as log:
+			log.write(str(datetime.datetime) + " " + str(e))
 		print(e)
 
 r = praw.Reddit(site_name="armitage")
@@ -127,4 +235,6 @@ if __name__ == "__main__":
 	try:
 		watch_comments()
 	except Exception as e:
+		with open('armitage.log','a') as log:
+			log.write(str(datetime.datetime) + " " + str(e))
 		print(e)
