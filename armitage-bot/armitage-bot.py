@@ -10,6 +10,7 @@ import json
 import time
 import re
 import datetime
+import threading
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 
@@ -202,11 +203,26 @@ def sieve_cards_from_comment(comment_body):
 	return re.findall(r"""\?([A-z.\"][A-z0-9'.:! \"]+)*\?""",comment_body)
 
 def watch_comments():
-	sub = "arkhamhorrorlcg+sandboxtest"
+	sub = "sandboxtest"
 	for comment in r.subreddit(sub).stream.comments():
 		reply = ""
-		if comment.created_utc > (time.time() - 120) and not already_replied(comment):
+		if comment.created_utc > (time.time() - 300) and not already_replied(comment):
 			possible_cards = sieve_cards_from_comment(comment.body)
+			if possible_cards:
+				for fuzzy_name in possible_cards:
+					card_name = fuzzy_match_card(arkham_dict,fuzzy_name)
+					for cid in get_ids_by_name(card_name):
+						rjson = get_arkham_card_details(cid)
+						reply += build_reply(rjson)
+						reply = replace_arkham_emotes(reply)
+				reply_to_comment(comment,reply)
+
+def watch_submissions():
+	sub = "sandboxtest"
+	for comment in r.subreddit(sub).stream.submissions():
+		reply = ""
+		if comment.created_utc > (time.time() - 300) and not already_replied(comment):
+			possible_cards = sieve_cards_from_comment(comment.selftext)
 			if possible_cards:
 				for fuzzy_name in possible_cards:
 					card_name = fuzzy_match_card(arkham_dict,fuzzy_name)
@@ -233,7 +249,8 @@ arkham_dict = build_arkham_dict()
 
 if __name__ == "__main__":
 	try:
-		watch_comments()
+		threading.Thread(target=watch_comments).start()
+		threading.Thread(target=watch_submissions).start()
 	except Exception as e:
 		with open('armitage.log','a') as log:
 			log.write(str(datetime.datetime) + " " + str(e))
