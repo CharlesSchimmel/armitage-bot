@@ -32,7 +32,6 @@ def pull_arkham_cards(cardrange):
 					cur = con.execute(insert_query,(card_code,card_name,card_url))
 					con.commit()
 					time.sleep(0.25)
-		# cardnum += 1
 
 def build_arkham_dict():
 	with sqlite3.connect('armitage.db') as con:
@@ -42,14 +41,6 @@ def build_arkham_dict():
 	for card in all_cards:
 		arkham_dict[card[0]] = card[1]
 	return arkham_dict
-
-def build_netrunner_dict():
-	with sqlite3.connect('armitage.db') as con:
-		cur = con.execute("select name,url from netrunner_cards")
-		all_cards = cur.fetchall()
-	arkham_dict = {}
-	for card in all_cards:
-		arkham_dict[card[0]] = card[1]
 
 def log_comment(comment):
 	with sqlite3.connect('armitage.db') as con:
